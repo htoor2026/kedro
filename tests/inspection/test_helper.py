@@ -234,6 +234,52 @@ class TestResolveFactoryPatterns:
         result = _resolve_factory_patterns(catalog_config, datasets, pipelines)
         assert result == datasets
 
+    def test_factory_patterns_skip_parameters(self):
+        """Parameter inputs are not resolved as datasets by factory patterns."""
+        catalog_config = {
+            "companies": {"type": "pandas.CSVDataset"},
+            "{namespace}.{name}": {
+                "type": "pandas.CSVDataset",
+                "filepath": "data/{name}.csv",
+            },
+            "{default}": {
+                "type": "pandas.ParquetDataset",
+                "filepath": "data/{default}.pq",
+            },
+        }
+        datasets = {
+            "companies": DatasetSnapshot(name="companies", type="pandas.CSVDataset"),
+            "{namespace}.{name}": DatasetSnapshot(
+                name="{namespace}.{name}",
+                type="pandas.CSVDataset",
+                filepath="data/{name}.csv",
+            ),
+            "{default}": DatasetSnapshot(
+                name="{default}",
+                type="pandas.ParquetDataset",
+                filepath="data/{default}.pq",
+            ),
+        }
+        pipelines = [
+            _make_pipeline_snapshot(
+                [
+                    _make_node_snapshot(
+                        [
+                            "companies",
+                            "params:model_options.test_size",
+                            "params:seed",
+                            "parameters",
+                        ],
+                        ["ds.out"],
+                    )
+                ]
+            )
+        ]
+
+        result = _resolve_factory_patterns(catalog_config, datasets, pipelines)
+
+        assert set(result) == {"companies", "ds.out"}
+
     def test_concrete_pipeline_ds_already_in_datasets_not_duplicated(self):
         """Pipeline datasets that already have direct entries are not replaced."""
         catalog_config = {
